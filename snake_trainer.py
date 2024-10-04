@@ -38,7 +38,7 @@ BATCH_SIZE = 1000
 LR = 0.001
 
 # Model File Path
-MODEL_PATH = 'model/snake_ai_model.h5'
+MODEL_PATH = 'model/snake_ai_model.keras'
 
 # Directions
 LEFT = 0
