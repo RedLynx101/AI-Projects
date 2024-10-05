@@ -5,6 +5,7 @@ import tensorflow as tf
 from collections import deque
 import os
 import sys
+from tkinter import Tk, filedialog, messagebox
 
 # Set TensorFlow log level to suppress warnings (optional)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -37,8 +38,9 @@ MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
 LR = 0.001
 
-# Model File Path
-MODEL_PATH = 'model/snake_ai_model.keras'
+# Ensure the models directory exists
+if not os.path.exists('snake_models'):
+    os.makedirs('snake_models')
 
 # Directions
 LEFT = 0
@@ -55,7 +57,7 @@ class Agent:
         self.memory = deque(maxlen=MAX_MEMORY)
         self.trainer = tf.keras.optimizers.Adam(learning_rate=LR)
         self.model = self.build_model()
-    
+
     def build_model(self):
         model = tf.keras.Sequential([
             tf.keras.layers.Input(shape=(11,)),  # Added Input layer
@@ -283,16 +285,47 @@ class SnakeGameAI:
 
 # Training Function
 def train():
-    agent = Agent()
+    # Ask user to start new or continue training
+    response = input("Do you want to start a new training session? (yes/no): ").strip().lower()
+
+    if response == 'yes':
+        # Start new training
+        agent = Agent()
+        record = 0
+        print("Starting a new training session.")
+    else:
+        # List available models
+        model_files = [f for f in os.listdir('snake_models') if f.endswith('.keras')]
+        if not model_files:
+            print("No models found in 'snake_models' directory.")
+            return
+        print("Available models:")
+        for idx, model_name in enumerate(model_files):
+            print(f"{idx + 1}: {model_name}")
+        # Ask user to select a model
+        try:
+            model_idx = int(input("Enter the number of the model you want to continue training: ")) - 1
+            if model_idx < 0 or model_idx >= len(model_files):
+                print("Invalid selection. Exiting.")
+                return
+        except ValueError:
+            print("Invalid input. Exiting.")
+            return
+        model_file = os.path.join('snake_models', model_files[model_idx])
+        agent = Agent()
+        agent.model = tf.keras.models.load_model(model_file)
+        # Extract the record (highest score) from the filename
+        try:
+            record = int(os.path.splitext(os.path.basename(model_file))[0].split('_')[-1])
+        except ValueError:
+            record = 0
+        print(f"Continuing training from model {model_file} with record {record}.")
     game = SnakeGameAI()
 
     # Could be useful for plotting
     scores = []
     mean_scores = []
     total_score = 0
-
-    # Track the highest score
-    record = 0
 
     while True:
         # Get old state
@@ -319,20 +352,38 @@ def train():
 
             if score > record:
                 record = score
-                agent.model.save(MODEL_PATH)
+                # Save the model with the new record in filename
+                model_filename = f'snake_ai_model_{record}.keras'
+                model_filepath = os.path.join('snake_models', model_filename)
+                agent.model.save(model_filepath)
 
             print('Game', agent.n_games, 'Score', score, 'Record:', record)
 
 # Play Function
 def play():
-    agent = Agent()
-    if os.path.exists(MODEL_PATH):
-        agent.model = tf.keras.models.load_model(MODEL_PATH)
-    else:
-        print("No model found. Please train the model first.")
+    # List available models
+    model_files = [f for f in os.listdir('snake_models') if f.endswith('.keras')]
+    if not model_files:
+        print("No models found in 'snake_models' directory.")
         return
-
+    print("Available models:")
+    for idx, model_name in enumerate(model_files):
+        print(f"{idx + 1}: {model_name}")
+    # Ask user to select a model
+    try:
+        model_idx = int(input("Enter the number of the model you want to play with: ")) - 1
+        if model_idx < 0 or model_idx >= len(model_files):
+            print("Invalid selection. Exiting.")
+            return
+    except ValueError:
+        print("Invalid input. Exiting.")
+        return
+    model_file = os.path.join('snake_models', model_files[model_idx])
+    agent = Agent()
+    agent.model = tf.keras.models.load_model(model_file)
+    print(f"Loaded model {model_file} for playing.")
     game = SnakeGameAI()
+    
     while True:
         state_old = agent.get_state(game)
         final_move = agent.get_action(state_old)
@@ -340,10 +391,11 @@ def play():
 
         # Optional: Display the "brain" (decision-making process)
         # For example, show the Q-values
-        prediction = agent.model.predict(state_old.reshape(1, -1))
-        print("Q-values:", prediction[0])
+        # prediction = agent.model.predict(state_old.reshape(1, -1))
+        # print("Q-values:", prediction[0])
 
         if done:
+            print('Game over. Score:', score)
             game.reset()
 
 # Main Function
